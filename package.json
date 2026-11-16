@@ -1,0 +1,10 @@
+{
+  "name": "livetik-loykrathong",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "optionalDependencies": {
+    "tiktok-live-connector": "^1.2.3"
+  }
+}

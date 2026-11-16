@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ลอยกระทงออนไลน์</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=Mali:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#02040c;overflow:hidden;font-family:'Sarabun',sans-serif}
+  #wrap{position:absolute;left:50%;top:50%;aspect-ratio:9/16;height:100vh;max-width:100vw;transform:translate(-50%,-50%);overflow:hidden}
+  canvas{width:100%;height:100%;display:block}
+  .ui{position:absolute;left:0;right:0;text-align:center;color:#ffe9a8;text-shadow:0 0 14px rgba(245,166,35,.85),0 2px 6px rgba(0,0,0,.9);pointer-events:none}
+  #title{top:2.6%;font:700 4vh 'Mali',sans-serif;letter-spacing:.08em;background:linear-gradient(180deg,#fff9db 0%,#ffd76b 55%,#e09b2d 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 12px rgba(255,195,70,.55))}
+  #count{top:8.4%;font-size:1.9vh;font-weight:600;color:#ffeab8;letter-spacing:.03em}
+  #bar{position:absolute;left:22%;right:22%;top:11.8%;height:.85vh;background:rgba(255,255,255,.16);border:1px solid rgba(255,220,130,.35);border-radius:99px;overflow:hidden;box-shadow:0 0 10px rgba(0,0,0,.4);pointer-events:none}
+  #bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff9d2e,#ffe57f,#fff5c0);border-radius:99px;box-shadow:0 0 10px #ffd56b;transition:width .7s cubic-bezier(.22,1,.36,1)}
+  #hint{bottom:2.5%;font-size:2.1vh;font-weight:600;color:#ffe8a3;animation:pulseHint 2.6s ease-in-out infinite}
+  @keyframes pulseHint{0%,100%{opacity:.82;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
+
+  #card{
+    position:absolute;left:50%;top:19%;width:74%;
+    transform:translate(-50%,-18px) scale(.86);opacity:0;
+    transition:transform .75s cubic-bezier(.22,1,.36,1),opacity .6s ease;
+    background:linear-gradient(155deg,rgba(25,38,78,.74),rgba(10,16,38,.84));
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:2px solid rgba(243,201,107,.88);border-radius:26px;
+    padding:2vh 2.6vh 2.2vh;text-align:center;color:#fff;
+    box-shadow:0 12px 40px rgba(0,0,0,.6),0 0 32px rgba(243,201,107,.35),inset 0 0 22px rgba(255,225,140,.12);
+    pointer-events:none;overflow:hidden;
+  }
+  #card::before{
+    content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,transparent 0%,rgba(255,230,150,.18) 12%,transparent 25%);
+    animation:spinGlow 6s linear infinite;pointer-events:none;
+  }
+  @keyframes spinGlow{to{transform:rotate(360deg)}}
+  #card.show{opacity:1;transform:translate(-50%,0) scale(1)}
+  #card.tier2{border-color:#ff9ecd;box-shadow:0 12px 40px rgba(0,0,0,.6),0 0 36px rgba(255,143,194,.45),inset 0 0 24px rgba(255,175,215,.15)}
+  #card.tier3{border-color:#ffe066;box-shadow:0 12px 45px rgba(0,0,0,.65),0 0 46px rgba(255,215,70,.6),inset 0 0 28px rgba(255,230,130,.22)}
+  #card .av-wrap{position:relative;display:inline-block}
+  #card img{position:relative;width:10.5vh;height:10.5vh;border-radius:50%;border:3px solid #f6d365;object-fit:cover;background:#23355c;box-shadow:0 0 20px rgba(246,211,101,.55)}
+  #card .badge{display:inline-block;margin-top:.5vh;padding:.25vh 1.2vh;border-radius:99px;font-size:1.5vh;font-weight:700;background:rgba(255,220,120,.18);border:1px solid rgba(255,220,120,.45);color:#ffe9a8}
+  #card .n{position:relative;font-weight:700;font-size:2.4vh;color:#ffe9a8;margin-top:.6vh;text-shadow:0 2px 6px rgba(0,0,0,.7)}
+  #card .w{position:relative;font-size:2.5vh;margin-top:.6vh;line-height:1.45;color:#fffdf5;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="720" height="1280"></canvas>
+  <div class="ui" id="title">ลอยกระทงออนไลน์</div>
+  <div class="ui" id="count">กระทงคืนนี้ 0 / 100</div>
+  <div id="bar"><i id="fill"></i></div>
+  <div id="card">
+    <div class="av-wrap"><img id="av" alt=""></div>
+    <div><span class="badge" id="bdg">🪷 กระทงใบตอง</span></div>
+    <div class="n" id="nm"></div>
+    <div class="w" id="ws"></div>
+  </div>
+  <div class="ui" id="hint">🎁 ส่งของขวัญเพื่อลอยกระทง</div>
+</div>
+<script>
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const W = 720, H = 1280, WATER = 635;
+const MAX_FLOATING = 36;
+let CFG = {goal:100,cardSeconds:3.2,lightSeconds:2.2,lowerSeconds:1.8,lanternCount:14,showCounter:true,soundOn:true,volume:.5,title:'',hint:''};
+const R = (a, b) => a + Math.random() * (b - a);
+const ease = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+const easeOutBack = t => { const c = 1.70158; return 1 + (c + 1)*Math.pow(t - 1, 3) + c*Math.pow(t - 1, 2); };
+
+// ---------- องค์ประกอบฉากหลัง ----------
+const stars = Array.from({length: 130}, () => ({
+  x: R(0, W), y: R(0, 470), r: R(.5, 2.0), p: R(0, 6.28),
+  sp: R(500, 1400), col: Math.random() < .22 ? '#ffe5a3' : Math.random() < .22 ? '#b8dcff' : '#ffffff'
+}));
+const fireflies = Array.from({length: 28}, () => ({
+  x: R(10, W-10), y: R(510, 740), vx: R(-.18, .18), vy: R(-.1, .1),
+  p: R(0, 6.28), r: R(1.8, 3.4)
+}));
+let shootingStars = [];
+let lanterns = Array.from({length: 14}, () => newLantern(true));
+const setLanterns = n => { while (lanterns.length < n) lanterns.push(newLantern(false)); lanterns.length = Math.min(lanterns.length, n); };
+function newLantern(init) {
+  return { x: R(25, W-25), y: init ? R(70, 610) : R(WATER - 20, WATER + 50), s: R(.45, 1.15), v: R(.18, .48), ph: R(0, 6.28) };
+}
+
+// ---------- วัดไทยริมแม่น้ำ (สไตล์ไทยวิจิตร) ----------
+function drawThaiRoof(cx, y, w, h, tiers, chofah = true) {
+  for (let i = 0; i < tiers; i++) {
+    const tw = w * (1 - i * .22);
+    const ty = y - i * (h * .42);
+    const th = h * (.85 - i * .12);
+    // ตัวหลังคาโค้งอ่อนช้อย
+    g.fillStyle = i % 2 === 0 ? '#111b3a' : '#19264d';
+    g.strokeStyle = 'rgba(255,208,105,.55)';
+    g.lineWidth = 1.6;
+    g.beginPath();
+    g.moveTo(cx - tw/2, ty);
+    g.quadraticCurveTo(cx - tw*.18, ty - th*.32, cx, ty - th);
+    g.quadraticCurveTo(cx + tw*.18, ty - th*.32, cx + tw/2, ty);
+    g.closePath();
+    g.fill(); g.stroke();
+    // หางหงส์ปลายหลังคา
+    g.fillStyle = '#f5c451';
+    g.beginPath(); g.arc(cx - tw/2, ty, 2.2, 0, 7); g.arc(cx + tw/2, ty, 2.2, 0, 7); g.fill();
+  }
+  if (chofah) {
+    const topY = y - (tiers - 1)*(h*.42) - h*(.85 - (tiers-1)*.12);
+    g.strokeStyle = '#ffd978'; g.lineWidth = 2.2;
+    g.beginPath(); g.moveTo(cx, topY + 2); g.quadraticCurveTo(cx - 4, topY - 12, cx + 3, topY - 22); g.stroke();
+  }
+}
+
+function drawPrang(cx, baseY, scale = 1) {
+  g.save(); g.translate(cx, baseY); g.scale(scale, scale);
+  // แสงเรืองรอบพระปรางค์
+  let pg = g.createRadialGradient(0, -130, 10, 0, -130, 145);
+  pg.addColorStop(0, 'rgba(255,205,95,.22)'); pg.addColorStop(1, 'rgba(255,180,60,0)');
+  g.fillStyle = pg; g.fillRect(-150, -280, 300, 280);
+
+  // ฐานไพที + องค์ปรางค์ลดหลั่น 5 ชั้น
+  g.fillStyle = '#121c3b'; g.strokeStyle = 'rgba(255,212,115,.65)'; g.lineWidth = 1.5;
+  const levels = [
+    [92, 28, 0], [74, 34, 28], [58, 38, 62], [44, 42, 100], [32, 42, 142], [20, 36, 184]
+  ];
+  levels.forEach(([w, h, y]) => {
+    g.beginPath();
+    g.moveTo(-w/2, -y); g.lineTo(-w*.42, -y - h); g.lineTo(w*.42, -y - h); g.lineTo(w/2, -y);
+    g.closePath(); g.fill(); g.stroke();
+    // กลีบขนุนประดับมุม
+    g.fillStyle = '#e8b647';
+    g.fillRect(-w*.44, -y - h*.6, 4, 8); g.fillRect(w*.44 - 4, -y - h*.6, 4, 8);
+    g.fillStyle = '#121c3b';
+  });
+  // ยอดนภศูลสีทอง
+  g.strokeStyle = '#ffe285'; g.lineWidth = 2.5;
+  g.beginPath(); g.moveTo(0, -220); g.lineTo(0, -264); g.stroke();
+  g.fillStyle = '#ffe89c'; g.beginPath(); g.arc(0, -266, 3, 0, 7); g.fill();
+  // ช่องซุ้มแสงเทียนในพระปรางค์
+  g.fillStyle = 'rgba(255,210,100,.85)';
+  g.beginPath(); g.ellipse(0, -82, 5, 11, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(0, -45, 6, 13, 0, 0, 7); g.fill();
+  g.restore();
+}
+
+function drawTempleAndBank(t) {
+  // ภูเขาไกลๆ 2 ชั้น
+  g.fillStyle = '#0c1a3d';
+  g.beginPath(); g.moveTo(0, WATER);
+  g.quadraticCurveTo(150, 528, 330, 578);
+  g.quadraticCurveTo(530, 520, W, 572);
+  g.lineTo(W, WATER); g.closePath(); g.fill();
+
+  // กำแพงแก้ววัดริมน้ำฝั่งซ้าย-กลาง
+  g.fillStyle = '#0b1430';
+  g.fillRect(0, WATER - 24, 345, 24);
+  g.fillStyle = 'rgba(255,210,110,.35)';
+  g.fillRect(0, WATER - 24, 345, 2);
+
+  // พระปรางค์ใหญ่
+  drawPrang(105, WATER - 22, 1.02);
+  // พระปรางค์ทิศองค์เล็ก
+  drawPrang(42, WATER - 22, .62);
+
+  // อุโบสถทรงไทย
+  g.fillStyle = '#0e1736';
+  g.fillRect(164, WATER - 72, 128, 50);
+  drawThaiRoof(228, WATER - 70, 152, 54, 3, true);
+  // หน้าต่างซุ้มโค้งแสงทองในอุโบสถ
+  for (let wx = 184; wx <= 272; wx += 22) {
+    g.fillStyle = 'rgba(255,206,95,.85)';
+    g.beginPath(); g.roundRect(wx - 4, WATER - 56, 8, 18, [4, 4, 0, 0]); g.fill();
+  }
+
+  // ศาลาท่าน้ำฝั่งขวา
+  g.fillStyle = '#0d1633';
+  g.fillRect(580, WATER - 54, 88, 36);
+  drawThaiRoof(624, WATER - 54, 108, 40, 2, true);
+  // เสาและไฟศาลา
+  g.fillStyle = 'rgba(255,212,105,.8)';
+  g.fillRect(598, WATER - 42, 6, 18);
+  g.fillRect(621, WATER - 44, 6, 20);
+  g.fillRect(644, WATER - 42, 6, 18);
+
+  // ต้นไม้ร่มรื่น + มะพร้าวริมฝั่ง
+  g.fillStyle = '#060c1f';
+  g.beginPath(); g.moveTo(W, WATER); g.lineTo(W, 548);
+  for (let x = W; x >= 475; x -= 16) g.lineTo(x, 566 + 15*Math.sin(x*.09) + 7*Math.cos(x*.21));
+  g.lineTo(475, WATER); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(0, WATER); g.lineTo(0, 565);
+  for (let x = 0; x <= 60; x += 15) g.lineTo(x, 575 + 10*Math.sin(x*.15));
+  g.lineTo(60, WATER); g.closePath(); g.fill();
+
+  // ประทีป / โคมไฟประดับริมตลิ่ง
+  const lights = [26, 58, 92, 134, 174, 212, 250, 288, 326, 565, 598, 624, 650, 682];
+  lights.forEach((lx, idx) => {
+    const pulse = .72 + .28*Math.sin(t/420 + idx*1.5);
+    let lg = g.createRadialGradient(lx, WATER - 10, 1, lx, WATER - 10, 18);
+    lg.addColorStop(0, `rgba(255,222,120,${.95*pulse})`);
+    lg.addColorStop(1, 'rgba(255,170,50,0)');
+    g.fillStyle = lg; g.fillRect(lx - 18, WATER - 28, 36, 36);
+    g.fillStyle = '#fff3b8'; g.beginPath(); g.arc(lx, WATER - 10, 2.5, 0, 7); g.fill();
+  });
+}
+
+function drawBg(t) {
+  let s = g.createLinearGradient(0, 0, 0, WATER);
+  s.addColorStop(0, '#04081d'); s.addColorStop(.45, '#0e1f4d'); s.addColorStop(.82, '#1f3b6e'); s.addColorStop(1, '#325687');
+  g.fillStyle = s; g.fillRect(0, 0, W, WATER);
+
+  // ทางช้างเผือกจางๆ
+  g.save();
+  g.translate(320, 220); g.rotate(-.45);
+  let mw = g.createRadialGradient(0, 0, 20, 0, 0, 380);
+  mw.addColorStop(0, 'rgba(130,170,255,.11)'); mw.addColorStop(1, 'rgba(130,170,255,0)');
+  g.fillStyle = mw; g.scale(1.8, .5); g.beginPath(); g.arc(0, 0, 380, 0, 7); g.fill();
+  g.restore();
+
+  // ดาวระยิบ
+  stars.forEach(o => {
+    g.globalAlpha = .35 + .65*Math.abs(Math.sin(t/o.sp + o.p));
+    g.fillStyle = o.col; g.beginPath(); g.arc(o.x, o.y, o.r, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+
+  // ดาวตกเป็นระยะ
+  if (Math.random() < .004 && shootingStars.length < 2) {
+    shootingStars.push({x: R(80, W-100), y: R(40, 220), vx: R(-7, -4), vy: R(2.5, 4.5), l: 1});
+  }
+  shootingStars = shootingStars.filter(st => st.l > 0);
+  shootingStars.forEach(st => {
+    st.x += st.vx; st.y += st.vy; st.l -= .028;
+    g.globalAlpha = Math.max(0, st.l);
+    g.strokeStyle = '#fff5cc'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(st.x, st.y); g.lineTo(st.x - st.vx*5, st.y - st.vy*5); g.stroke();
+  });
+  g.globalAlpha = 1;
+
+  // พระจันทร์เต็มดวง
+  const mx = 535, my = 220;
+  let m = g.createRadialGradient(mx, my, 30, mx, my, 250);
+  m.addColorStop(0, 'rgba(255,248,214,.95)'); m.addColorStop(.28, 'rgba(255,232,162,.35)'); m.addColorStop(.6, 'rgba(255,210,120,.1)'); m.addColorStop(1, 'rgba(255,200,100,0)');
+  g.fillStyle = m; g.fillRect(mx-250, my-250, 500, 500);
+  g.fillStyle = '#fff5d4'; g.beginPath(); g.arc(mx, my, 64, 0, 7); g.fill();
+  g.fillStyle = 'rgba(225,200,150,.22)';
+  g.beginPath(); g.arc(mx - 18, my - 12, 16, 0, 7); g.fill();
+  g.beginPath(); g.arc(mx + 20, my + 14, 12, 0, 7); g.fill();
+  g.beginPath(); g.arc(mx + 10, my - 24, 8, 0, 7); g.fill();
+
+  drawTempleAndBank(t);
+
+  // โคมลอย
+  lanterns.forEach((l, i) => {
+    l.y -= l.v; l.x += Math.sin(t/1500 + l.ph) * .28;
+    if (l.y < -40) lanterns[i] = newLantern(false);
+    const a = Math.min(1, (WATER + 60 - l.y) / 140) * (.85 + .15*Math.sin(t/220 + l.ph));
+    g.globalAlpha = Math.max(0, a);
+    let r = g.createRadialGradient(l.x, l.y, 1, l.x, l.y, 32*l.s);
+    r.addColorStop(0, '#fff4bf'); r.addColorStop(.35, 'rgba(255,179,71,.6)'); r.addColorStop(1, 'rgba(255,140,0,0)');
+    g.fillStyle = r; g.fillRect(l.x-34*l.s, l.y-34*l.s, 68*l.s, 68*l.s);
+    const w = 13*l.s, h = 19*l.s;
+    g.fillStyle = '#ffb84d';
+    g.beginPath();
+    g.moveTo(l.x - w*.42, l.y + h*.5);
+    g.lineTo(l.x - w*.58, l.y - h*.2);
+    g.quadraticCurveTo(l.x, l.y - h*.75, l.x + w*.58, l.y - h*.2);
+    g.lineTo(l.x + w*.42, l.y + h*.5);
+    g.closePath(); g.fill();
+    g.fillStyle = '#fff3c4';
+    g.beginPath(); g.arc(l.x, l.y + h*.28, 3*l.s, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+}
+
+function drawWater(t) {
+  let w = g.createLinearGradient(0, WATER, 0, H);
+  w.addColorStop(0, '#1e4675'); w.addColorStop(.25, '#122f58'); w.addColorStop(.65, '#091836'); w.addColorStop(1, '#030817');
+  g.fillStyle = w; g.fillRect(0, WATER, W, H - WATER);
+
+  // เงาสะท้อนวัดสีทองบนผิวน้ำ
+  let tr = g.createRadialGradient(170, WATER + 35, 15, 170, WATER + 35, 220);
+  tr.addColorStop(0, 'rgba(255,195,90,.2)'); tr.addColorStop(1, 'rgba(255,180,60,0)');
+  g.fillStyle = tr; g.fillRect(0, WATER, 390, 220);
+
+  // เงาพระปรางค์ & อุโบสถสะท้อนน้ำแบบเป็นคลื่น
+  for (let dy = 6; dy < 120; dy += 6) {
+    const fade = 1 - dy / 120;
+    const wave = Math.sin(t/350 + dy*.22) * 5;
+    g.fillStyle = `rgba(12,22,52,${.38 * fade})`;
+    g.fillRect(105 - (45 - dy*.25) + wave, WATER + dy, (45 - dy*.25)*2, 4);
+    g.fillStyle = `rgba(255,205,105,${.24 * fade})`;
+    g.fillRect(228 - 40 + wave, WATER + dy*.7, 80, 3);
+  }
+
+  // เงาไฟประทีปริมตลิ่งสะท้อนน้ำ
+  [26, 58, 92, 134, 174, 212, 250, 288, 326, 565, 598, 624, 650, 682].forEach((lx, i) => {
+    for (let dy = 4; dy < 85; dy += 7) {
+      const a = .22 * (1 - dy/85) * (.7 + .3*Math.sin(t/380 + i + dy));
+      g.fillStyle = `rgba(255,212,110,${a})`;
+      g.fillRect(lx - 4 + Math.sin(t/280 + dy)*3.2, WATER + dy, 8, 2.5);
+    }
+  });
+
+  // เงาพระจันทร์สะท้อนน้ำระยิบระยับ
+  for (let y = WATER + 4; y < 1070; y += 6) {
+    const k = (y - WATER) / 430;
+    const wd = 38 + 88*k + 18*Math.sin(t/360 + y/7);
+    g.fillStyle = `rgba(255,235,172,${.34*(1-k)})`;
+    g.fillRect(535 - wd/2 + 10*Math.sin(t/500 + y/16), y, wd, 2.6);
+  }
+
+  // คลื่นน้ำพริ้วไหวหลายชั้น
+  for (let y = WATER + 14; y < H; y += 22) {
+    const k = (y - WATER) / (H - WATER);
+    g.strokeStyle = `rgba(185,225,255,${.06 + k*.06})`;
+    g.lineWidth = 1.2 + k*.8;
+    g.beginPath();
+    for (let x = 0; x <= W; x += 20) g.lineTo(x, y + (2.5 + k*2)*Math.sin(x/42 + t/660 + y*.28));
+    g.stroke();
+  }
+
+  // หมอกบางๆ เหนือผิวน้ำ
+  let mist = g.createLinearGradient(0, WATER - 16, 0, WATER + 36);
+  mist.addColorStop(0, 'rgba(130,175,230,0)');
+  mist.addColorStop(.5, 'rgba(160,205,245,.15)');
+  mist.addColorStop(1, 'rgba(130,175,230,0)');
+  g.fillStyle = mist; g.fillRect(0, WATER - 16, W, 52);
+}
+
+function drawFireflies(t) {
+  fireflies.forEach(f => {
+    f.x += f.vx + Math.sin(t/900 + f.p)*.15;
+    f.y += f.vy + Math.cos(t/1100 + f.p)*.1;
+    if (f.x < 10 || f.x > W - 10) f.vx *= -1;
+    if (f.y < 500 || f.y > 760) f.vy *= -1;
+    const glow = Math.max(0, Math.sin(t/550 + f.p));
+    g.globalAlpha = glow * .85;
+    let fg = g.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r*4);
+    fg.addColorStop(0, '#e8ff8c'); fg.addColorStop(1, 'rgba(200,255,100,0)');
+    g.fillStyle = fg; g.beginPath(); g.arc(f.x, f.y, f.r*4, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+}
+
+// ---------- กระทง & เงาสะท้อน ----------
+function drawKrathong(k, t, flame, isReflection = false) {
+  const {x, y, s, tier} = k;
+  g.save();
+  g.translate(x, y);
+  if (isReflection) {
+    g.scale(s * (1 + .04*Math.sin(t/180 + k.seed)), -s * .38);
+    g.globalAlpha *= .28;
+  } else {
+    g.scale(s, s);
+    g.rotate(k.rot || 0);
+  }
+
+  // แสงเรืองของเทียน
+  if (flame > 0 && !isReflection) {
+    const auraCol = tier === 3 ? '255,215,85' : tier === 2 ? '255,175,130' : '255,200,95';
+    let r = g.createRadialGradient(0, -45, 2, 0, -45, tier === 3 ? 165 : 135);
+    r.addColorStop(0, `rgba(${auraCol},${.6*flame})`);
+    r.addColorStop(.5, `rgba(${auraCol},${.2*flame})`);
+    r.addColorStop(1, `rgba(${auraCol},0)`);
+    g.fillStyle = r; g.fillRect(-170, -210, 340, 340);
+  }
+
+  // ฐานกระทง
+  const base = tier === 3 ? ['#ffe074', '#b87d0a', '#fff4b8'] : ['#67c74e', '#246624', '#97eb73'];
+  g.fillStyle = base[1]; g.beginPath(); g.ellipse(0, 7, 68, 19, 0, 0, 7); g.fill();
+  g.fillStyle = base[0]; g.beginPath(); g.ellipse(0, 0, 64, 17, 0, 0, 7); g.fill();
+
+  // กลีบใบตองพับรอบขอบ
+  for (let i = -4; i <= 4; i++) {
+    const px = i * 13.5;
+    const py = 4 - Math.abs(i)*.7;
+    g.fillStyle = i % 2 === 0 ? base[2] : base[0];
+    g.beginPath(); g.moveTo(px - 8, py); g.lineTo(px, py - 19); g.lineTo(px + 8, py); g.closePath(); g.fill();
+  }
+
+  // ดอกดาวเรือง/มะลิรอบฐานสำหรับ Tier 2-3
+  if (tier >= 2) {
+    for (let i = -3; i <= 3; i++) {
+      g.fillStyle = tier === 3 ? '#ff9d00' : '#ffcf40';
+      g.beginPath(); g.arc(i * 15, 7 + Math.abs(i)*.6, 4.2, 0, 7); g.fill();
+      g.fillStyle = '#fff';
+      g.beginPath(); g.arc(i * 15 + 7.5, 8 + Math.abs(i)*.6, 2.5, 0, 7); g.fill();
+    }
+  }
+
+  // กลีบดอกบัว
+  const pet1 = tier === 3 ? '#ffd86b' : tier === 2 ? '#ff7eb9' : '#ffffff';
+  const pet2 = tier === 3 ? '#fff3b8' : tier === 2 ? '#ffc4df' : '#ffe3ef';
+  const rings = tier === 1 ? 1 : tier === 2 ? 2 : 3;
+  for (let ring = 0; ring < rings; ring++) {
+    const count = 4 - Math.floor(ring/2);
+    for (let a = -count; a <= count; a++) {
+      const ang = a * (.25 + ring*.02), len = 46 - ring*10;
+      g.save(); g.translate(0, -10 - ring*6); g.rotate(ang);
+      g.fillStyle = ring % 2 ? pet2 : pet1;
+      g.strokeStyle = tier === 3 ? 'rgba(190,130,10,.55)' : 'rgba(210,100,150,.45)';
+      g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, 0);
+      g.quadraticCurveTo(-13, -len*.55, 0, -len);
+      g.quadraticCurveTo(13, -len*.55, 0, 0);
+      g.fill(); g.stroke(); g.restore();
+    }
+  }
+
+  if (tier === 3) {
+    g.fillStyle = '#ffe57f';
+    g.beginPath(); g.arc(0, -18, 10, 0, Math.PI, true); g.fill();
+  }
+
+  // เทียน + ธูป 3 ดอก
+  g.fillStyle = tier === 3 ? '#ffe57f' : '#ffd1dc';
+  g.fillRect(-4.5, -50, 9, 36);
+  g.strokeStyle = '#5c3317'; g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(-16, -14); g.lineTo(-24, -54);
+  g.moveTo(0, -14); g.lineTo(0, -56);
+  g.moveTo(16, -14); g.lineTo(24, -54);
+  g.stroke();
+
+  if (flame > 0) {
+    const f = flame * (1 + .14*Math.sin(t/55 + k.seed)), sway = 2.2*Math.sin(t/105 + k.seed);
+    for (const [col, sc] of [['#ff8c1a', 1], ['#ffe066', .65], ['#ffffff', .32]]) {
+      g.fillStyle = col; g.beginPath();
+      g.moveTo(sway, -50 - 28*f*sc);
+      g.quadraticCurveTo(11*f*sc + sway, -56, 0, -50);
+      g.quadraticCurveTo(-11*f*sc + sway, -56, sway, -50 - 28*f*sc);
+      g.fill();
+    }
+    [[-24, -54], [0, -56], [24, -54]].forEach(([ix, iy]) => {
+      g.fillStyle = '#ff5e00'; g.beginPath(); g.arc(ix, iy, 2.2*flame, 0, 7); g.fill();
+    });
+  }
+  g.restore();
+}
+
+// วาดรูปโปรไฟล์ผู้ลอย + ชื่อติดมากับกระทงที่ลอยอยู่
+function drawOwnerTag(k, ky, alpha) {
+  const s = k.s;
+  const r = Math.max(12, 22 * s);
+  const ax = k.x;
+  const ay = ky + 34 * s + r;
+
+  g.save();
+  g.globalAlpha = alpha * .92;
+
+  // กรอบแสงทองรอบรูปอวตาร
+  let glow = g.createRadialGradient(ax, ay, r*.6, ax, ay, r*1.45);
+  glow.addColorStop(0, 'rgba(255,220,115,.55)'); glow.addColorStop(1, 'rgba(255,220,115,0)');
+  g.fillStyle = glow; g.beginPath(); g.arc(ax, ay, r*1.45, 0, 7); g.fill();
+
+  if (k.img && k.img.complete && k.img.naturalWidth > 0) {
+    g.save();
+    g.beginPath(); g.arc(ax, ay, r, 0, 7); g.clip();
+    g.drawImage(k.img, ax - r, ay - r, r*2, r*2);
+    g.restore();
+  } else {
+    g.fillStyle = '#294073'; g.beginPath(); g.arc(ax, ay, r, 0, 7); g.fill();
+  }
+  g.strokeStyle = k.tier === 3 ? '#ffe066' : k.tier === 2 ? '#ff9ecd' : '#f6d365';
+  g.lineWidth = Math.max(1.5, 2.5 * s);
+  g.beginPath(); g.arc(ax, ay, r, 0, 7); g.stroke();
+
+  // ป้ายชื่อใต้รูปโปรไฟล์
+  if (k.user) {
+    const fs = Math.max(11, Math.round(13 * s + 5));
+    g.font = `600 ${fs}px Sarabun, sans-serif`;
+    g.textAlign = 'center';
+    const ty = ay + r + fs + 2;
+    const tw = g.measureText(k.user).width;
+    g.fillStyle = 'rgba(6,12,30,.62)';
+    g.beginPath(); g.roundRect(ax - tw/2 - 7, ty - fs + 1, tw + 14, fs + 6, 99); g.fill();
+    g.fillStyle = '#ffe9a8';
+    g.fillText(k.user, ax, ty);
+  }
+  g.restore();
+}
+
+// ---------- อนุภาค (ประกายไฟ, ควันธูป, ระลอกน้ำ) ----------
+let sparks = [], ripples = [], smokes = [];
+function burst(x, y, n = 24, colA = '#ffe27a', colB = '#ff9d2e') {
+  for (let i = 0; i < n; i++) {
+    const a = R(0, 6.28), sp = R(.8, 3.8);
+    sparks.push({x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 1.2, l: 1, r: R(1.8, 3.8), c: Math.random() < .55 ? colA : colB});
+  }
+}
+function addSmoke(x, y) {
+  smokes.push({x: x + R(-3, 3), y, vx: R(-.15, .2), vy: R(-.7, -.4), r: R(3, 6), l: .65, ph: R(0, 6)});
+}
+function drawFx(t) {
+  smokes = smokes.filter(s => s.l > 0);
+  smokes.forEach(s => {
+    s.x += s.vx + Math.sin(t/350 + s.ph)*.25; s.y += s.vy; s.r += .09; s.l -= .007;
+    g.globalAlpha = Math.max(0, s.l * .35);
+    g.fillStyle = '#d8e4f5';
+    g.beginPath(); g.arc(s.x, s.y, Math.max(0, s.r), 0, 7); g.fill();
+  });
+
+  sparks = sparks.filter(p => p.l > 0);
+  sparks.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += .045; p.l -= .018;
+    g.globalAlpha = Math.max(0, p.l); g.fillStyle = p.c;
+    g.beginPath(); g.arc(p.x, p.y, Math.max(0, p.r*p.l), 0, 7); g.fill();
+  });
+
+  ripples = ripples.filter(r => r.l > 0);
+  ripples.forEach(r => {
+    r.r += 1.25; r.l -= .011;
+    g.globalAlpha = Math.max(0, r.l * .65);
+    g.strokeStyle = r.c || '#cfe8ff'; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(r.x, r.y, Math.max(0, r.r), Math.max(0, r.r*.28), 0, 0, 7); g.stroke();
+  });
+  g.globalAlpha = 1;
+}
+
+// ---------- คิวเหตุการณ์ & ลำดับอนิเมชัน ----------
+const queue = []; let cur = null, floating = [], total = 0, lastRipple = 0;
+const card = document.getElementById('card');
+function enqueue(ev) { queue.push(ev); }
+
+function loadAvatarImg(src, name) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onerror = () => { img.src = avatarFor(name); };
+  img.src = src || avatarFor(name);
+  return img;
+}
+
+function startNext(t) {
+  const ev = queue.shift(); if (!ev) return;
+  const img = loadAvatarImg(ev.avatar, ev.user);
+  cur = {
+    ev, t0: t, stage: 'card', sp: 0,
+    k: {x: W/2, y: 780, s: 1.35, tier: ev.tier || 1, seed: R(0, 9), rot: 0, user: ev.user, img}
+  };
+  sfx('chime');
+  card.classList.remove('tier2', 'tier3');
+  if (cur.k.tier === 2) card.classList.add('tier2');
+  if (cur.k.tier === 3) card.classList.add('tier3');
+  document.getElementById('bdg').textContent =
+    cur.k.tier === 3 ? '👑 กระทงทองคำ' : cur.k.tier === 2 ? '🌸 กระทงดอกบัว' : '🪷 กระทงใบตอง';
+  document.getElementById('av').src = ev.avatar || avatarFor(ev.user);
+  document.getElementById('nm').textContent = ev.user;
+  document.getElementById('ws').textContent = '“' + ev.wish + '”';
+  card.classList.add('show');
+}
+
+function avatarFor(name) {
+  const h = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='hsl(${h},60%,70%)'/><circle cx='50' cy='42' r='20' fill='#ffe0bd'/><path d='M28 40 Q50 5 72 40 Q50 22 28 40' fill='hsl(${(h+180)%360},40%,25%)'/><circle cx='43' cy='44' r='2.5' fill='#222'/><circle cx='57' cy='44' r='2.5' fill='#222'/><path d='M43 52 Q50 58 57 52' stroke='#c0504d' stroke-width='2' fill='none'/><path d='M20 100 Q50 62 80 100' fill='hsl(${(h+90)%360},50%,45%)'/></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+
+function updateCur(t) {
+  const c = cur, e = t - c.t0;
+  if (c.stage === 'card') {
+    const p = Math.min(1, e / 900);
+    c.k.y = 830 - 60 * easeOutBack(p);
+    c.k.rot = Math.sin(t/450) * .025;
+    g.globalAlpha = Math.max(0, .45 * Math.sin(p * Math.PI));
+    g.strokeStyle = c.k.tier === 3 ? '#ffe066' : '#9ee6ff'; g.lineWidth = 3;
+    g.beginPath(); g.ellipse(c.k.x, c.k.y + 18, 95*p, 26*p, 0, 0, 7); g.stroke();
+    g.globalAlpha = 1;
+    drawKrathong(c.k, t, 0);
+    if (e > CFG.cardSeconds * 1000) { c.stage = 'light'; c.t0 = t; }
+  } else if (c.stage === 'light') {
+    const dur = Math.max(800, CFG.lightSeconds * 1000);
+    const p = Math.min(1, e / dur);
+    const wickX = c.k.x, wickY = c.k.y - 72;
+
+    if (p < .45) {
+      const sp = ease(p / .45);
+      const ox = (1 - sp)*(1 - sp)*(c.k.x - 240) + 2*(1 - sp)*sp*(c.k.x - 80) + sp*sp*wickX;
+      const oy = (1 - sp)*(1 - sp)*(c.k.y - 250) + 2*(1 - sp)*sp*(c.k.y - 190) + sp*sp*wickY;
+      let og = g.createRadialGradient(ox, oy, 1, ox, oy, 26);
+      og.addColorStop(0, '#ffffff'); og.addColorStop(.4, '#ffe066'); og.addColorStop(1, 'rgba(255,150,20,0)');
+      g.fillStyle = og; g.beginPath(); g.arc(ox, oy, 26, 0, 7); g.fill();
+      if (Math.random() < .65) sparks.push({x: ox, y: oy, vx: R(-.5,.5), vy: R(-.5,.5), l: .7, r: 2.2, c: '#ffe27a'});
+      drawKrathong(c.k, t, 0);
+    } else {
+      const fp = Math.min(1, (p - .45) / .4);
+      c.flame = ease(fp);
+      if (!c.sp) {
+        c.sp = 1;
+        burst(wickX, wickY, c.k.tier === 3 ? 36 : 26, '#fff2a6', c.k.tier === 2 ? '#ff9ecd' : '#ff9d2e');
+        sfx('light');
+      }
+      if (p < .75) {
+        const rp = (p - .45) / .3;
+        g.globalAlpha = Math.max(0, (1 - rp) * .7);
+        g.strokeStyle = '#ffe57f'; g.lineWidth = 3;
+        g.beginPath(); g.arc(wickX, wickY, Math.max(0, rp * 95), 0, 7); g.stroke();
+        g.globalAlpha = 1;
+      }
+      if (Math.random() < .25) addSmoke(wickX, wickY - 12);
+      drawKrathong(c.k, t, c.flame);
+    }
+    if (e > dur) { c.stage = 'down'; c.t0 = t; card.classList.remove('show'); }
+  } else if (c.stage === 'down') {
+    const dur = Math.max(600, CFG.lowerSeconds * 1000);
+    const f = ease(Math.min(1, e / dur));
+    c.k.y = 770 + f * (1005 - 770);
+    c.k.s = 1.35 - f * .52;
+    c.k.rot = Math.sin(e / 180) * .045 * (1 - f);
+    if (Math.random() < .18) addSmoke(c.k.x, c.k.y - 68*c.k.s);
+    drawKrathong(c.k, t, 1, true);
+    drawKrathong(c.k, t, 1, false);
+    if (f >= 1) {
+      sfx('splash');
+      ripples.push(
+        {x: c.k.x, y: c.k.y + 6, r: 12, l: 1, c: '#ffe8a8'},
+        {x: c.k.x, y: c.k.y + 6, r: 4, l: .85, c: '#cfe8ff'}
+      );
+      burst(c.k.x, c.k.y, 14, '#d9f2ff', '#ffe57f');
+      const k = c.k;
+      // กระทงยังคงลอยอยู่ในแม่น้ำ กระจายตัวตามแนวกว้างและลึกอย่างเป็นธรรมชาติ
+      k.vx = (Math.random() < .5 ? -1 : 1) * R(.16, .34);
+      k.vy = -R(.14, .28);
+      k.targetY = R(705, 1085);
+      k.alpha = 1;
+      k.born = t;
+      floating.push(k);
+      // ถ้าเกิน MAX_FLOATING ให้กระทงเก่าสุดค่อยๆ จางหาย
+      if (floating.length > MAX_FLOATING) {
+        for (let i = 0; i < floating.length - MAX_FLOATING; i++) floating[i].fading = true;
+      }
+      total++; updateGoal(); cur = null;
+    }
+  }
+}
+
+function drawFloating(t) {
+  floating.sort((a, b) => a.y - b.y);
+  floating.forEach(k => {
+    // ลอยตามกระแสน้ำและวนเวียนอยู่ในเขตแม่น้ำ ไม่หายไปทันที
+    k.x += k.vx + Math.sin(t/1800 + k.seed) * .12;
+    if (k.x < 68) { k.x = 68; k.vx = Math.abs(k.vx); }
+    if (k.x > W - 68) { k.x = W - 68; k.vx = -Math.abs(k.vx); }
+
+    // ค่อยๆ ลอยเข้าหาความลึก targetY แล้วลอยคลอเบาๆ
+    const dy = k.targetY - k.y;
+    k.y += dy * .004 + Math.cos(t/1600 + k.seed) * .08;
+
+    // ขนาดกระทงปรับตามระยะใกล้-ไกล (Perspective)
+    const depth = (k.y - 680) / (1120 - 680);
+    const targetScale = .44 + Math.max(0, Math.min(1, depth)) * .42;
+    k.s += (targetScale - k.s) * .04;
+
+    if (k.fading) k.alpha = Math.max(0, (k.alpha ?? 1) - .006);
+    else k.alpha = Math.min(1, (k.alpha ?? 1) + .02);
+
+    k.rot = Math.sin(t/550 + k.seed) * .055;
+    const bob = Math.sin(t/480 + k.seed) * 2.2;
+    const ky = k.y + bob;
+
+    g.globalAlpha = k.alpha;
+    drawKrathong({...k, y: ky + 10*k.s}, t, 1, true);
+    drawKrathong({...k, y: ky}, t, 1, false);
+    drawOwnerTag(k, ky, k.alpha);
+    g.globalAlpha = 1;
+
+    if (t - lastRipple > 420 && Math.random() < .02) ripples.push({x: k.x, y: ky + 5, r: 4, l: .6});
+    if (Math.random() < .035) addSmoke(k.x, ky - 55*k.s);
+  });
+  floating = floating.filter(k => (k.alpha ?? 1) > .01);
+  lastRipple = t;
+}
+
+function updateGoal() {
+  document.getElementById('count').textContent = `กระทงคืนนี้ ${total} / ${CFG.goal}`;
+  document.getElementById('fill').style.width = Math.min(100, (total % CFG.goal || (total ? CFG.goal : 0))/CFG.goal*100) + '%';
+  if (total && total % CFG.goal === 0) {
+    for (let i = 0; i < 65; i++) {
+      const l = newLantern(false); l.y = R(WATER, H); l.v = R(.85, 2.3); lanterns.push(l);
+    }
+    setTimeout(() => setLanterns(CFG.lanternCount), 25000);
+  }
+}
+
+function frame(t) {
+  try {
+    g.clearRect(0, 0, W, H);
+    drawBg(t);
+    drawWater(t);
+    drawFireflies(t);
+    drawFloating(t);
+    if (!cur && queue.length) startNext(t);
+    if (cur) updateCur(t);
+    drawFx(t);
+  } catch (e) { console.error(e); g.globalAlpha = 1; }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- เสียง (สังเคราะห์ ไม่ต้องใช้ไฟล์) ----------
+let AC = null;
+function tone(f, d, type='sine', v=.2, at=0) {
+  if (!CFG.soundOn || !AC) return;
+  const o = AC.createOscillator(), a = AC.createGain(), t = AC.currentTime + at;
+  o.type = type; o.frequency.value = f; a.gain.setValueAtTime(0, t);
+  a.gain.linearRampToValueAtTime(v*CFG.volume, t+.02); a.gain.exponentialRampToValueAtTime(.0001, t+d);
+  o.connect(a).connect(AC.destination); o.start(t); o.stop(t+d+.05);
+}
+function noise(d, v=.15, hp=2000) {
+  if (!CFG.soundOn || !AC) return;
+  const b = AC.createBuffer(1, AC.sampleRate*d, AC.sampleRate), x = b.getChannelData(0);
+  for (let i = 0; i < x.length; i++) x[i] = (Math.random()*2-1) * (1 - i/x.length);
+  const n = AC.createBufferSource(), f = AC.createBiquadFilter(), a = AC.createGain();
+  f.type = 'highpass'; f.frequency.value = hp; a.gain.value = v*CFG.volume; n.buffer = b;
+  n.connect(f).connect(a).connect(AC.destination); n.start();
+}
+function sfx(k) {
+  if (k === 'chime') [880, 1175, 1568].forEach((f, i) => tone(f, 1.2, 'sine', .16, i*.11));
+  if (k === 'light') { noise(.4, .2, 3000); tone(587, .8, 'triangle', .09, .08); }
+  if (k === 'splash') { noise(.7, .25, 800); tone(196, .6, 'sine', .12); }
+}
+addEventListener('pointerdown', () => { if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); }, {once:false});
+
+// ---------- ตั้งค่า ----------
+function applyCfg(c) {
+  CFG = {...CFG, ...c};
+  document.getElementById('title').textContent = CFG.title;
+  document.getElementById('hint').textContent = CFG.hint;
+  document.title = CFG.title;
+  for (const id of ['count','bar']) document.getElementById(id).style.display = CFG.showCounter ? '' : 'none';
+  setLanterns(CFG.lanternCount); updateGoal();
+}
+fetch('/config').then(r => r.json()).then(applyCfg).catch(() => {});
+
+// ---------- รับเหตุการณ์จากเซิร์ฟเวอร์ ----------
+let es;
+function connect() {
+  es = new EventSource('/events');
+  es.onmessage = m => {
+    const d = JSON.parse(m.data);
+    if (d.type === 'config') applyCfg(d.config);
+    else if (d.type === 'reset') { total = 0; floating = []; queue.length = 0; cur = null; card.classList.remove('show'); updateGoal(); }
+    else enqueue(d);
+  };
+}
+connect();
+const names = ['น้องมะลิ', 'พี่ต้น', 'แม่ปู', 'Nok', 'บอยบอย'];
+const wishes = ['ขอให้โชคดี สุขภาพแข็งแรง', 'ขอให้ทุกคนมีความสุข', 'ขอให้ได้เจอคนที่ใช่', 'ขอให้ร่ำรวยเงินทอง', 'ขอให้ครอบครัวปลอดภัย'];
+addEventListener('keydown', e => {
+  if (e.code === 'Space') enqueue({user: names[Math.random()*5|0], wish: wishes[Math.random()*5|0], avatar: '', tier: 1 + (Math.random()*3|0)});
+});
+</script>
+</body>
+</html>

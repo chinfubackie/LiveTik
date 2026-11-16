@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>เชื่อมต่อ TikTok LIVE — ลอยกระทงออนไลน์</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=Mali:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#1a2f66,#070d20 70%);color:#eef;font-family:'Sarabun',sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
+  .box{width:100%;max-width:480px;background:rgba(15,24,54,.86);border:2px solid rgba(243,201,107,.55);border-radius:24px;padding:28px 26px;box-shadow:0 16px 50px rgba(0,0,0,.6),0 0 36px rgba(243,201,107,.16);backdrop-filter:blur(12px)}
+  h1{margin:0 0 6px;font:700 26px 'Mali',sans-serif;color:#ffe9a8;text-align:center}
+  .sub{text-align:center;color:#9eb3db;font-size:14px;margin-bottom:20px}
+  .status{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:#0e193a;border:1px solid #2b427a;margin-bottom:18px;font-size:14px}
+  .dot{width:11px;height:11px;border-radius:50%;background:#889;flex:none}
+  .dot.ok{background:#4ade80;box-shadow:0 0 10px #4ade80}
+  .dot.wait{background:#facc15;box-shadow:0 0 10px #facc15}
+  .dot.err{background:#f87171;box-shadow:0 0 10px #f87171}
+  label{display:block;font-weight:600;font-size:14px;color:#ffdca8;margin:12px 0 6px}
+  input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #3c548a;background:#0c1633;color:#fff;font-size:16px;outline:none}
+  input:focus{border-color:#f3c96b;box-shadow:0 0 0 3px rgba(243,201,107,.2)}
+  .opt{margin-top:8px;font-size:13px;color:#8fa6d4}
+  .opt summary{cursor:pointer;color:#b8c9eb}
+  .btns{display:flex;gap:10px;margin-top:18px}
+  button,a.btn{flex:1;padding:12px;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;font-family:inherit;transition:transform .12s,opacity .15s}
+  button:active,a.btn:active{transform:scale(.98)}
+  .primary{background:linear-gradient(135deg,#ffe27a,#e5a935);color:#1d1504}
+  .danger{background:#2d3b66;color:#fca5a5;border:1px solid #523b52}
+  .links{display:flex;gap:10px;margin-top:12px}
+  .alt{background:#1d3163;color:#dbeafe;border:1px solid #35508f}
+  .logbox{margin-top:18px;background:#081026;border:1px solid #243766;border-radius:14px;padding:12px;height:165px;overflow-y:auto;font-size:13px;line-height:1.55;color:#cbd5e1}
+  .logbox .empty{color:#64748b;text-align:center;margin-top:55px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🪷 เชื่อมต่อ TikTok LIVE</h1>
+  <div class="sub">ใส่ชื่อบัญชี TikTok ที่กำลังไลฟ์อยู่ เพื่อดึงของขวัญและคำอธิษฐานเข้าฉาก</div>
+
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <div>
+      <div><strong id="stText">กำลังตรวจสอบ...</strong></div>
+      <div style="font-size:12px;color:#9eb3db" id="stDetail"></div>
+    </div>
+  </div>
+
+  <form onsubmit="doConnect(event)">
+    <label for="user">ชื่อผู้ใช้ TikTok (ไม่ต้องมี @)</label>
+    <input id="user" type="text" placeholder="เช่น my_tiktok_name" autocomplete="username" required>
+
+    <details class="opt">
+      <summary>ตัวเลือกเพิ่มเติม (กรณีห้องจำกัดอายุ/ต้องใช้ Session ID)</summary>
+      <label for="sid">TikTok Session ID (ไม่บังคับ)</label>
+      <input id="sid" type="password" placeholder="เว้นว่างไว้ได้">
+    </details>
+
+    <div class="btns">
+      <button type="submit" class="primary">🔗 เชื่อมต่อห้องไลฟ์</button>
+      <button type="button" class="danger" onclick="doDisconnect()">ตัดการเชื่อมต่อ</button>
+    </div>
+  </form>
+
+  <div class="links">
+    <a class="btn alt" href="/" target="_blank">🌊 เปิดหน้าฉาก</a>
+    <a class="btn alt" href="/settings.html">⚙️ ตั้งค่าทั้งหมด</a>
+    <button type="button" class="btn alt" style="flex:.8" onclick="testGift()">🎁 ทดสอบ</button>
+  </div>
+
+  <div class="logbox" id="logs"><div class="empty">ยังไม่มีรายการ — เมื่อเชื่อมต่อแล้ว แชตและของขวัญจะแสดงที่นี่</div></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+fetch('/config').then(r => r.json()).then(c => {
+  $('user').value = c.tiktokUser || '';
+  $('sid').value = c.sessionId || '';
+});
+
+async function doConnect(e) {
+  e.preventDefault();
+  const tiktokUser = $('user').value.trim();
+  const sessionId = $('sid').value.trim();
+  await fetch('/connect', { method: 'POST', body: JSON.stringify({ tiktokUser, sessionId }) });
+  refresh();
+}
+
+async function doDisconnect() {
+  $('user').value = '';
+  await fetch('/disconnect', { method: 'POST' });
+  refresh();
+}
+
+function testGift() {
+  fetch('/test?user=' + encodeURIComponent($('user').value.trim() || 'ผู้ชมทดสอบ') + '&coins=15&wish=' + encodeURIComponent('ขอให้ไลฟ์ปังๆ สุขภาพแข็งแรง'));
+}
+
+async function refresh() {
+  try {
+    const s = await fetch('/status').then(r => r.json());
+    $('stText').textContent = s.status + (s.viewers ? ` (เปิดหน้าฉาก ${s.viewers} จอ)` : '');
+    $('stDetail').textContent = s.detail || '';
+    const dot = $('dot');
+    dot.className = 'dot ' + (s.ok ? 'ok' : s.status === 'กำลังเชื่อมต่อ' ? 'wait' : (s.status === 'เชื่อมต่อไม่ได้' || s.status === 'ผิดพลาด') ? 'err' : '');
+    if (s.logs && s.logs.length) {
+      $('logs').innerHTML = s.logs.map(l => `<div>${l.replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]))}</div>`).join('');
+    }
+  } catch {
+    $('stText').textContent = 'เซิร์ฟเวอร์ไม่ตอบสนอง';
+    $('dot').className = 'dot err';
+  }
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

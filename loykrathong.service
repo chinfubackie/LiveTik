@@ -1,0 +1,12 @@
+[Unit]
+Description=Loy Krathong Online (TikTok LIVE overlay)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/chinfuback/Documents/LiveTik
+ExecStart=/usr/bin/node /home/chinfuback/Documents/LiveTik/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

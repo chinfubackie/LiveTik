@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8"><title>ตั้งค่า ลอยกระทงออนไลน์</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ body{margin:0;background:#0b1530;color:#eef;font-family:'Sarabun',system-ui,sans-serif}
+ main{max-width:720px;margin:auto;padding:20px}
+ h1{color:#ffe9a8} h2{color:#f3c96b;border-bottom:1px solid #f3c96b44;padding-bottom:4px;margin-top:28px}
+ label{display:block;margin:12px 0 4px} small{color:#9ab}
+ input[type=text],input[type=number],textarea{width:100%;box-sizing:border-box;padding:9px;border-radius:8px;border:1px solid #456;background:#12204a;color:#fff;font-size:15px}
+ input[type=range]{width:100%}
+ .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+ button,a.btn{background:#f3c96b;color:#222;border:0;border-radius:9px;padding:10px 16px;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;margin:4px 6px 4px 0}
+ button.alt,a.btn.alt{background:#2c4a86;color:#fff}
+ #st{padding:10px;border-radius:8px;background:#12204a;margin:10px 0}
+ #msg{color:#8f8;margin-left:8px}
+</style></head><body><main>
+<h1>⚙️ ตั้งค่าลอยกระทงออนไลน์</h1>
+<div id="st">สถานะ: …</div>
+<a class="btn" href="/connect.html">🔗 หน้าเชื่อมต่อ TikTok LIVE</a>
+<a class="btn alt" href="/" target="_blank">เปิดหน้าฉาก</a>
+<button class="alt" onclick="fetch('/reset')">รีเซ็ตตัวนับ/ล้างกระทง</button>
+
+<h2>TikTok</h2>
+<label>ชื่อผู้ใช้ TikTok ที่ไลฟ์ (ไม่ต้องมี @) <small>— เว้นว่างไว้ = โหมดทดสอบ</small></label>
+<input type="text" id="tiktokUser">
+<label><input type="checkbox" id="useChatAsWish"> ใช้ข้อความแชตล่าสุดของผู้ส่งเป็นคำอธิษฐาน</label>
+<label>คำอธิษฐานเริ่มต้น (ถ้าไม่ได้พิมพ์แชต)</label><input type="text" id="defaultWish">
+<label>ความยาวคำอธิษฐานสูงสุด (ตัวอักษร)</label><input type="number" id="maxWishLength" min="10" max="200">
+<label>คำที่ไม่อนุญาต (คั่นด้วย ,)</label><textarea id="badWords" rows="2"></textarea>
+
+<h2>ข้อความบนหน้าจอ</h2>
+<label>ชื่อหัวข้อ</label><input type="text" id="title">
+<label>ข้อความด้านล่าง</label><input type="text" id="hint">
+<label><input type="checkbox" id="showCounter"> แสดงตัวนับและแถบเป้าหมาย</label>
+<label>เป้าหมายจำนวนกระทง (ครบแล้วโคมลอยเต็มฟ้า)</label><input type="number" id="goal" min="1">
+
+<h2>ชนิดกระทงตามเหรียญ</h2>
+<div class="row">
+ <div><label>ดอกบัวชมพู เริ่มที่ (เหรียญ)</label><input type="number" id="tier2Coins" min="1"></div>
+ <div><label>ฐานทองใหญ่ เริ่มที่ (เหรียญ)</label><input type="number" id="tier3Coins" min="1"></div>
+</div><small>ต่ำกว่าระดับแรก = กระทงใบตองขาว</small>
+
+<h2>อนิเมชัน</h2>
+<div class="row">
+ <div><label>แสดงอวตาร+คำอธิษฐาน (วินาที)</label><input type="number" step="0.1" id="cardSeconds"></div>
+ <div><label>จุดเทียน (วินาที)</label><input type="number" step="0.1" id="lightSeconds"></div>
+ <div><label>วางลงน้ำ (วินาที)</label><input type="number" step="0.1" id="lowerSeconds"></div>
+ <div><label>จำนวนโคมลอยบนฟ้า</label><input type="number" id="lanternCount" min="0" max="80"></div>
+</div>
+
+<h2>เสียง</h2>
+<label><input type="checkbox" id="soundOn"> เปิดเสียงเอฟเฟกต์</label>
+<label>ความดัง <span id="vv"></span></label><input type="range" id="volume" min="0" max="1" step="0.05">
+<small>เบราว์เซอร์ต้องคลิกหน้าฉากหนึ่งครั้งก่อนเสียงจะดัง (ใน TikTok LIVE Studio ให้คลิกที่หน้าฉากในหน้าต่างพรีวิว)</small>
+
+<h2>เซิร์ฟเวอร์</h2>
+<label>พอร์ต <small>— มีผลเมื่อรีสตาร์ทบริการ</small></label><input type="number" id="port">
+
+<h2>ทดสอบ</h2>
+<div class="row"><div><label>ชื่อ</label><input type="text" id="tu" value="น้องมะลิ"></div>
+<div><label>เหรียญ</label><input type="number" id="tc" value="1"></div></div>
+<label>คำอธิษฐาน</label><input type="text" id="tw" value="ขอให้โชคดี สุขภาพแข็งแรง">
+<button class="alt" onclick="t()">ลอยกระทงทดสอบ</button>
+
+<p><button onclick="save()">💾 บันทึก</button><span id="msg"></span></p>
+</main>
+<script>
+const ids=['tiktokUser','useChatAsWish','defaultWish','maxWishLength','badWords','title','hint','showCounter','goal','tier2Coins','tier3Coins','cardSeconds','lightSeconds','lowerSeconds','lanternCount','soundOn','volume','port'];
+const $=i=>document.getElementById(i);
+fetch('/config').then(r=>r.json()).then(c=>{ids.forEach(i=>{const e=$(i);e.type==='checkbox'?e.checked=c[i]:e.value=c[i]});$('vv').textContent=c.volume});
+$('volume').oninput=e=>$('vv').textContent=e.target.value;
+async function save(){
+  const o={};ids.forEach(i=>{const e=$(i);o[i]=e.type==='checkbox'?e.checked:e.value});
+  const r=await fetch('/config',{method:'POST',body:JSON.stringify(o)}).then(r=>r.json());
+  $('msg').textContent=r.ok?'บันทึกแล้ว ✓ '+(r.note||''):'ผิดพลาด';setTimeout(()=>$('msg').textContent='',4000);
+}
+function t(){fetch(`/test?user=${encodeURIComponent($('tu').value)}&coins=${$('tc').value}&wish=${encodeURIComponent($('tw').value)}`)}
+async function st(){try{const s=await fetch('/status').then(r=>r.json());$('st').textContent=`TikTok: ${s.status} ${s.detail} | หน้าฉากที่เปิดอยู่: ${s.viewers}`}catch{$('st').textContent='เซิร์ฟเวอร์ไม่ตอบสนอง'}}
+st();setInterval(st,3000);
+</script></body></html>
