@@ -34,11 +34,20 @@
 <label><input type="checkbox" id="showCounter"> แสดงตัวนับและแถบเป้าหมาย</label>
 <label>เป้าหมายจำนวนกระทง (ครบแล้วโคมลอยเต็มฟ้า)</label><input type="number" id="goal" min="1">
 
-<h2>ชนิดกระทงตามเหรียญ</h2>
+<h2>ชนิดกระทงตามเหรียญ (TikTok)</h2>
+<label><input type="checkbox" id="showTierGuide"> แสดงแผงของรางวัล 3 ระดับบนหน้าจอ</label>
 <div class="row">
- <div><label>ดอกบัวชมพู เริ่มที่ (เหรียญ)</label><input type="number" id="tier2Coins" min="1"></div>
- <div><label>ฐานทองใหญ่ เริ่มที่ (เหรียญ)</label><input type="number" id="tier3Coins" min="1"></div>
-</div><small>ต่ำกว่าระดับแรก = กระทงใบตองขาว</small>
+ <div><label>ชื่อระดับ 1 (1+ เหรียญ)</label><input type="text" id="tier1Name"></div>
+ <div><label>ชื่อระดับ 2</label><input type="text" id="tier2Name"></div>
+</div>
+<div class="row">
+ <div><label>ระดับ 2 เริ่มที่ (เหรียญ)</label><input type="number" id="tier2Coins" min="1"></div>
+ <div><label>ชื่อระดับ 3</label><input type="text" id="tier3Name"></div>
+</div>
+<div class="row">
+ <div><label>ระดับ 3 เริ่มที่ (เหรียญ)</label><input type="number" id="tier3Coins" min="1"></div>
+ <div></div>
+</div><small>ระบบจะแบ่งระดับอัตโนมัติตามจำนวนเหรียญของขวัญจาก TikTok LIVE</small>
 
 <h2>อนิเมชัน</h2>
 <div class="row">
@@ -65,7 +74,7 @@
 <p><button onclick="save()">💾 บันทึก</button><span id="msg"></span></p>
 </main>
 <script>
-const ids=['tiktokUser','useChatAsWish','defaultWish','maxWishLength','badWords','title','hint','showCounter','goal','tier2Coins','tier3Coins','cardSeconds','lightSeconds','lowerSeconds','lanternCount','soundOn','volume','port'];
+const ids=['tiktokUser','useChatAsWish','defaultWish','maxWishLength','badWords','title','hint','showCounter','goal','showTierGuide','tier1Name','tier2Name','tier3Name','tier2Coins','tier3Coins','cardSeconds','lightSeconds','lowerSeconds','lanternCount','soundOn','volume','port'];
 const $=i=>document.getElementById(i);
 fetch('/config').then(r=>r.json()).then(c=>{ids.forEach(i=>{const e=$(i);e.type==='checkbox'?e.checked=c[i]:e.value=c[i]});$('vv').textContent=c.volume});
 $('volume').oninput=e=>$('vv').textContent=e.target.value;
